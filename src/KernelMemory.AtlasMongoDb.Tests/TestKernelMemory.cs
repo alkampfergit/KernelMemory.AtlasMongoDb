@@ -1,16 +1,17 @@
 using Microsoft.KernelMemory;
+using Microsoft.KernelMemory.AI;
 using Microsoft.KernelMemory.MemoryStorage;
 using MongoDB.Bson;
 using MongoDB.Driver;
+using Moq;
 
 namespace KernelMemory.AtlasMongoDb.Tests;
 
-
-public class Experiments : IDisposable
+public sealed class Experiments : IDisposable
 {
     private const string ConnectionString = "";
 
-    public void Dispose()
+    void IDisposable.Dispose()
     {
         var client = new MongoClient(ConnectionString);
         var utils = new AtlasSearchUtils(ConnectionString, "testgm");
@@ -38,7 +39,6 @@ public class Experiments : IDisposable
             database.CreateCollection(collectionName);
         }
 
-
         var collection = database.GetCollection<BsonDocument>("default");
 
         collection.InsertOne(new BsonDocument("name", "test"));
@@ -56,7 +56,14 @@ public class Experiments : IDisposable
     [Fact]
     public async Task Verify_init_index_smoke() 
     {
-        AtlasMemory sut = new(ConnectionString, "testgm");
+        MongoDbKernelMemoryConfiguration mongoDbKernelMemoryConfiguration = new();
+        mongoDbKernelMemoryConfiguration.WithConnection(ConnectionString);
+        mongoDbKernelMemoryConfiguration.WithDatabaseName("testgm");
+
+        //create an instance of ITextEmbeddingGenerator with moq
+        var mock = new Mock<ITextEmbeddingGenerator>();
+
+        MongoDbVectorMemory sut = new(mongoDbKernelMemoryConfiguration, mock.Object);
         await sut.CreateIndexAsync("default", 725, CancellationToken.None);
 
         //verify that the index is created
@@ -70,7 +77,8 @@ public class Experiments : IDisposable
             { "category", new List<string?> { "Fantasy", "ScienceFiction" } },
             { "owner", new List<string?> { "alkampfer" } }
         };
-        record.Payload = new Dictionary<string, object>() 
+
+        record.Payload = new Dictionary<string, object>()
         {
             ["citations"] = "bla bla bla bla",
             ["title"] = "This is a nice test",
